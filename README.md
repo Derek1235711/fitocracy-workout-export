@@ -4,7 +4,7 @@ To use this application, you need a java runtime environment and little bit of k
 
 There are 3 values that you need for this to work.
 
-1) Your Fitracy Id 
+1) Your Fitocracy Id 
 2) Your current active session Id
 3) The date you started Fitocracy
 
