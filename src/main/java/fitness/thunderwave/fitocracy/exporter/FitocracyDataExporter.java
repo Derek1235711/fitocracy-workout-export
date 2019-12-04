@@ -30,12 +30,20 @@ public class FitocracyDataExporter implements Callable<Integer> {
 	
 	
     @Override
-    public Integer call() throws Exception { 
+    public Integer call()  { 
 		
-		Date startDate = FitocracyApiManager.DATE_FORMATTER.parse(startDateString);
+		
+		try {
+			Date startDate = FitocracyApiManager.DATE_FORMATTER.parse(startDateString);
+			
+	    	FitocracyApiManager apiManager = new FitocracyApiManager();
+	    	apiManager.getWorkouts(fitocracyUserId, sessionId, fitocracyBaseApiUrl, startDate);
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+			return -1;
+		}
     	
-    	FitocracyApiManager apiManager = new FitocracyApiManager();
-    	apiManager.getWorkouts(fitocracyUserId, sessionId, fitocracyBaseApiUrl, startDate);
+
 
         return 0;
     }

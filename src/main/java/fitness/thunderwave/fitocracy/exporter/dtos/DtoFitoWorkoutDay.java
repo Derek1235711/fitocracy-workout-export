@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class DtoFitoWorkoutDay {
 	
 	private List<DtoFitoWorkout> data = new ArrayList<>();
+	
+	private String error;
 
 	public List<DtoFitoWorkout> getData() {
 		return data;
@@ -16,6 +18,16 @@ public class DtoFitoWorkoutDay {
 
 	public void setData(List<DtoFitoWorkout> data) {
 		this.data = data;
+	}
+	
+	
+
+	public String getError() {
+		return error;
+	}
+
+	public void setError(String error) {
+		this.error = error;
 	}
 
 	@Override

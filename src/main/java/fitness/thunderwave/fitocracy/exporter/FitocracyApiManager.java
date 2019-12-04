@@ -24,7 +24,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -44,7 +43,7 @@ public class FitocracyApiManager {
     final static private String DATE_FORMAT = "yyyy-MM-dd";
     public final static SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat(DATE_FORMAT);
     
-    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate) throws IOException {
+    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate) throws Exception {
     	
 		Date startSearchDate = startDate;
 		Date endSearchDate = getEndofDay(new Date());
@@ -177,45 +176,40 @@ public class FitocracyApiManager {
 	
 	
 	private String makeApiCall(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date date) throws IOException  {
+
+			
+		HttpHeaders headers = new HttpHeaders();
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.add("Cookie", sessionId );
+
+		HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
+		RestTemplate restTemplate = new RestTemplate();
+
+		ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
+																			+ "/user/"
+																			+ fitocracyId
+																			+ "/workouts/"
+																			+ DATE_FORMATTER.format(date) 
+																			+ "/",
+																			HttpMethod.GET, entity, String.class);
 		
-
+		System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
 		
-		try {
-			
-			HttpHeaders headers = new HttpHeaders();
-			headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-			headers.setContentType(MediaType.APPLICATION_JSON);
-			headers.add("Cookie", sessionId );
+		if(respEntity.getStatusCode().is2xxSuccessful()) {
 
-			HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
-			RestTemplate restTemplate = new RestTemplate();
+			String json = respEntity.getBody();
+			return json;
 
-			ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
-																				+ "/user/"
-																				+ fitocracyId
-																				+ "/workouts/"
-																				+ DATE_FORMATTER.format(date) 
-																				+ "/",
-																				HttpMethod.GET, entity, String.class);
-			
-			System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
-			
-			if(respEntity.getStatusCode().is2xxSuccessful()) {
-				
-				
-				
-				String json = respEntity.getBody();
-				return json;
-
-			}
-			
-		} catch(HttpClientErrorException e) {
-			System.err.println(e.getMessage());			
+		} else {
+			System.err.println("Unsuccessful attempt to get data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date) + "" + respEntity.getStatusCode());
 		}
+			
+
 		return null;
 	}
 	
-	private List<CsvRow> processJson(String json, String fitocracyId, Date date) throws IOException  {
+	private List<CsvRow> processJson(String json, String fitocracyId, Date date) throws Exception  {
 		
 		List<CsvRow>  csvRows = new ArrayList<>();
 		
@@ -231,6 +225,9 @@ public class FitocracyApiManager {
 				System.out.println("found " + data.getData().size() + " workout(s)");
 				csvRows.addAll(processWorkoutDay(data));
 			} else {
+				if(StringUtils.isNotBlank(data.getError())) {
+					throw new Exception(data.getError());
+				} 
 				System.out.println("found 0 workout(s)");
 			}
 			
