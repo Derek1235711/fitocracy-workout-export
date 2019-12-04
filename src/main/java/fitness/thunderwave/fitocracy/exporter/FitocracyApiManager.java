@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -44,13 +45,15 @@ public class FitocracyApiManager {
 		Date endSearchDate = getEndofDay(new Date());
 		Date tmpDate = startSearchDate;
 
-		
-		BufferedWriter csvWriter = new BufferedWriter(new FileWriter(fitocracyId + ".csv"));
+		List<CsvRow>  csvRows = new ArrayList<>(100);
 
 		// doing one day at time sequentially, to keep the load on Fitocracy serves light
 		while(tmpDate.getTime() <=  endSearchDate.getTime()) {
+			
+			String jsonResponse = makeApiCall(fitocracyId, sessionId, fitocracyApiBaseUrl, tmpDate);
 
-			makeApiCall(csvWriter, fitocracyId, sessionId, fitocracyApiBaseUrl, tmpDate);
+			List<CsvRow> workoutRows = processJson(jsonResponse, fitocracyId, tmpDate);
+			csvRows.addAll(workoutRows);
 			
 			tmpDate = addDays(tmpDate, 1);
 			try {
@@ -59,15 +62,65 @@ public class FitocracyApiManager {
 			} catch (InterruptedException e) {
 				System.err.println(e.getMessage());
 			}
-			csvWriter.flush();
 		}
+		
+		
+		BufferedWriter csvWriter = new BufferedWriter(new FileWriter(fitocracyId + ".csv"));
+		
+		for (CsvRow csvRow : csvRows) {
+			
+			
+			csvWriter.write(toCsv(csvRow.getWorkoutTime()));
+			csvWriter.write(toCsv(csvRow.getWorkoutName()));
+
+			// workout group info
+			csvWriter.write(toCsv(csvRow.getGroupName()));
+
+			// workout exercise
+			csvWriter.write(toCsv(csvRow.getExerciseSequence()));
+			csvWriter.write(toCsv(csvRow.getExerciseName()));
+			
+			
+			// set data
+			csvWriter.write(toCsv(csvRow.getSetSequence()));
+
+			csvWriter.write(toCsv(csvRow.getPoints()));
+
+			csvWriter.write(toCsv(csvRow.getDistanceUnit()));
+			csvWriter.write(toCsv(csvRow.getDistanceValue()));
+
+			csvWriter.write(toCsv(csvRow.getTimeUnit()));
+			csvWriter.write(toCsv(csvRow.getTimeValue()));
+
+			csvWriter.write(toCsv(csvRow.getRepsValue()));
+			
+			csvWriter.write(toCsv(csvRow.getWeightUnit()));
+			csvWriter.write(toCsv(csvRow.getWeightValue()));
+			
+
+			csvWriter.write(toCsv(csvRow.getAssistedType()));
+			csvWriter.write(toCsv(csvRow.getAssistedUnit()));
+			csvWriter.write(toCsv(csvRow.getAssistedValue()));
+			
+			csvWriter.write(toCsv(csvRow.getWeightedType()));
+			csvWriter.write(toCsv(csvRow.getWeightedUnit()));
+			csvWriter.write(toCsv(csvRow.getWeightedValue()));
+			
+			csvWriter.write(toCsv(csvRow.getWorkoutNotes(), false));
+			
+			csvWriter.write("\n");
+			
+		}
+		
 		
 		csvWriter.close();
     	
     }
 	
 	
-	private void makeApiCall(BufferedWriter csvWriter, String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date date)  {
+	private String makeApiCall(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date date) throws IOException  {
+		
+
 		
 		try {
 			
@@ -92,61 +145,72 @@ public class FitocracyApiManager {
 			if(respEntity.getStatusCode().is2xxSuccessful()) {
 				
 				
-				ObjectMapper objectMapper = new ObjectMapper();
-				String json = respEntity.getBody();
 				
-				if(json != null && json.length() > 0) {
+				String json = respEntity.getBody();
+				return json;
 
-					boolean foundData = false;
-					
-					try {
-						DtoFitoWorkoutDay data = objectMapper.readValue(json, DtoFitoWorkoutDay.class);
-						if(data.getData() != null && data.getData().size() > 0) {
-							foundData = true;
-							System.out.println("found " + data.getData().size() + " workout(s)");
-						} else {
-							System.out.println("found 0 workout(s)");
-						}
-						
-					} catch (JsonProcessingException e) {
-						System.err.println(e.getMessage());
-					} 
-					
-					if(foundData) {
-						try {
-							BufferedWriter writer = new BufferedWriter(new FileWriter(fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
-							writer.write(json);
-							writer.close();
-						} catch (IOException e1) {
-							e1.printStackTrace();
-						}
-					}
-
-				}
 			}
 			
 		} catch(HttpClientErrorException e) {
-			System.err.println(e.getMessage());
-			return;
+			System.err.println(e.getMessage());			
 		}
+		return null;
+	}
+	
+	private List<CsvRow> processJson(String json, String fitocracyId, Date date) throws IOException  {
+		
+		List<CsvRow>  csvRows = new ArrayList<>();
+		
+		ObjectMapper objectMapper = new ObjectMapper();
+		
+		boolean foundData = false;
+		
+		try {
 
+			DtoFitoWorkoutDay data = objectMapper.readValue(json, DtoFitoWorkoutDay.class);
+			if(data.getData() != null && data.getData().size() > 0) {
+				foundData = true;
+				System.out.println("found " + data.getData().size() + " workout(s)");
+				csvRows.addAll(processWorkoutDay(data));
+			} else {
+				System.out.println("found 0 workout(s)");
+			}
+			
+		} catch (JsonProcessingException e) {
+			System.err.println(e.getMessage());
+		} 
+		
+		if(foundData) {
+			try {
+				BufferedWriter writer = new BufferedWriter(new FileWriter(fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
+				writer.write(json);
+				writer.close();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+		}
+		
+		return csvRows;
 	}
 	
 
     
 
     
-	public void processWorkoutDay(BufferedWriter csvWriter, DtoFitoWorkoutDay day) throws Exception {
+	private List<CsvRow> processWorkoutDay(DtoFitoWorkoutDay day) throws IOException {
+		
+		List<CsvRow> csvRows = new ArrayList<>();
 		
 		if(day == null) {
-			return;
+			return csvRows;
 		}
 		
 		for (DtoFitoWorkout fitoWorkout : day.getData()) {
 			
 			if(fitoWorkout.getRootGroup() != null) {
 				
-				processWorkout(csvWriter, fitoWorkout, fitoWorkout.getRootGroup());
+				CsvRow workout = processWorkout(fitoWorkout, fitoWorkout.getRootGroup());
+				csvRows.add(workout);
 				
 				
 				// should always be group for the root
@@ -158,89 +222,119 @@ public class FitocracyApiManager {
 					for (DtoFitoWorkoutExercise child : children) {
 						if("group".equals(child.getType())) {
 							
-							processWorkoutGroup(csvWriter, child);
+							workout = processWorkoutGroup(workout, child);
 							
-							processGroupChildrenExercise(csvWriter, child.getChildren());
+							List<CsvRow> exerciseRows = processGroupChildrenExercise(workout, child.getChildren());
+							csvRows.addAll(exerciseRows);
 							
 						} else if("exercise".equals(child.getType())) {
-							processChildExercise(csvWriter, child, exSeqId);
+							List<CsvRow> exerciseRows = processChildExercise(workout, child, exSeqId);
+							csvRows.addAll(exerciseRows);
 							exSeqId += 1;
 						}
 					}
 				} 
 			}
 		}
+		return csvRows;
 	}
 	
-	private void processWorkout(BufferedWriter csvWriter, DtoFitoWorkout fitoWorkout, DtoFitoRootGroup rootGroup) throws IOException {
+	private CsvRow processWorkout(DtoFitoWorkout fitoWorkout, DtoFitoRootGroup rootGroup) throws IOException {
 		
-		csvWriter.write(toCsv(rootGroup.getName()));
-		csvWriter.write(toCsv(rootGroup.getNotes()));
-		csvWriter.write(toCsv(fitoWorkout.getWorkoutTimestamp().toInstant().toString()));
+		CsvRow row = new CsvRow();
+		
+		row.setWorkoutName(rootGroup.getName());
+		row.setWorkoutNotes(rootGroup.getNotes());
+		row.setWorkoutTime(fitoWorkout.getWorkoutTimestamp().toInstant().toString());
 
-
+		return row;
 	}
 	
-	private void processWorkoutGroup(BufferedWriter csvWriter, DtoFitoWorkoutExercise group) throws IOException {
+	private CsvRow processWorkoutGroup(CsvRow csvRow, DtoFitoWorkoutExercise group) throws IOException {
 
-		csvWriter.write(toCsv(group.getName()));
+		csvRow.setGroupName(group.getName());
+		
+		return csvRow;
 	}
 
-	private void processGroupChildrenExercise(BufferedWriter csvWriter, List<DtoFitoWorkoutGroupExercise> exercises) throws Exception {
+	private List<CsvRow> processGroupChildrenExercise(CsvRow workout, List<DtoFitoWorkoutGroupExercise> exercises) throws IOException {
+		List<CsvRow> csvRows = new ArrayList<>();
+		
 		if(exercises == null) {
-			return;
+			return csvRows;
 		}
+		
+		CsvRow tmpExRow = workout;
 		
 		int exSeq = 1;
 		for (DtoFitoWorkoutGroupExercise ex : exercises) {
 			
+			if(exSeq > 1) {
+				tmpExRow = new CsvRow(workout);
+				csvRows.add(tmpExRow);
+			}
 			
 			DtoFitoWorkoutExerciseDetail detail = ex.getExercise();
 			
 			if(detail != null) {
-				processExercise(csvWriter, detail, exSeq);
+				
+				
+				processExercise(tmpExRow, detail, exSeq);
 				List<DtoFitoWorkoutSet> sets = detail.getSets();
 				
+				CsvRow tmpSetRow = tmpExRow;
 				int setSeq = 1;
 				for (DtoFitoWorkoutSet set : sets) {
 					
-					processSet(csvWriter, set, setSeq);
+					if(exSeq > 1) {
+						tmpSetRow = new CsvRow(tmpExRow);
+						csvRows.add(tmpSetRow);
+					}
+					
+					processSet(tmpSetRow, set, setSeq);
 					setSeq++;
 				}
 			}
 			exSeq++;
 			
 		}
-		
+		return csvRows;
 	}
 
 	
-	private void processChildExercise(BufferedWriter csvWriter, DtoFitoWorkoutExercise exercise, int exSeq) throws Exception {
+	private List<CsvRow> processChildExercise(CsvRow workout, DtoFitoWorkoutExercise exercise, int exSeq) throws IOException {
+		List<CsvRow> csvRows = new ArrayList<>();
+		
 		if(exercise == null) {
-			return;
+			return csvRows;
 		}
 
 		DtoFitoWorkoutExerciseDetail detail = exercise.getExercise();
 		
 		if(detail != null) {
-			processExercise(csvWriter, detail, exSeq);
+			processExercise(workout, detail, exSeq);
 			List<DtoFitoWorkoutSet> sets = detail.getSets();
 			
+			CsvRow tmpRow = workout;
 			int setSeq = 1;
 			for (DtoFitoWorkoutSet set : sets) {
+				if(setSeq > 1) {
+					tmpRow = new CsvRow(tmpRow);
+				}
 				
-				processSet(csvWriter, set, setSeq);
+				processSet(tmpRow, set, setSeq);
 				setSeq++;
 			}
 		}
-
+		return csvRows;
 	}
 	
-	private void processExercise(BufferedWriter csvWriter, DtoFitoWorkoutExerciseDetail exerciseDetail, int seq) throws Exception {
+	private CsvRow processExercise(CsvRow row, DtoFitoWorkoutExerciseDetail exerciseDetail, int seq) throws IOException {
+		
+		row.setExerciseSequence("" + seq);
+		row.setExerciseName("" + exerciseDetail.getExerciseId());
 
-		csvWriter.write(toCsv("" + seq));
-		csvWriter.write(toCsv("" + exerciseDetail.getExerciseId()));
-
+		return row;
 		
 		// TODO get list of exercises
 		
@@ -262,12 +356,12 @@ public class FitocracyApiManager {
 	}
 	
 	
-	private void processSet(BufferedWriter csvWriter, DtoFitoWorkoutSet set, int seq) throws IOException {
-
-		csvWriter.write(toCsv("" + seq));
+	private CsvRow processSet(CsvRow setRow, DtoFitoWorkoutSet set, int seq) throws IOException {
+		
+		setRow.setSetSequence("" + seq);
 		
 		if(set.getPoints() != null) {
-			csvWriter.write(toCsv("" + set.getPoints().longValue()));
+			setRow.setPoints("" + set.getPoints().longValue());
 		}
 
 		List<DtoFitoWorkoutInput> inputs = set.getInputs();
@@ -275,48 +369,55 @@ public class FitocracyApiManager {
 		for (DtoFitoWorkoutInput input : inputs) {
 			
 			if("distance".equals(input.getType())) {
-				
-				csvWriter.write(toCsv(input.getUnit()));
-				csvWriter.write(toCsv("" + input.getValue()));
+				setRow.setDistanceUnit(input.getUnit());
+				setRow.setDistanceValue("" + input.getValue());
 				
 			} else if("time".equals(input.getType())) {
 				
-				csvWriter.write(toCsv(input.getUnit()));
-				csvWriter.write(toCsv("" + input.getValue()));
+				setRow.setTimeUnit(input.getUnit());
+				setRow.setTimeValue("" + input.getValue());
 				
 			} else if("reps".equals(input.getType())) {
 				
-				csvWriter.write(toCsv("" + input.getValue()));
+				setRow.setRepsValue("" + input.getValue());
 				
 			} else if("weight".equals(input.getType())) {
 				
-				csvWriter.write(toCsv(input.getUnit()));
-				csvWriter.write(toCsv("" + input.getValue()));
+				setRow.setWeightUnit(input.getUnit());
+				setRow.setWeightValue("" + input.getValue());
 
 			}
 
 			if("assisted".equals(input.getAssistType())) {
 				
-				csvWriter.write(toCsv(input.getAssistType()));
-				csvWriter.write(toCsv(input.getUnit()));
-				csvWriter.write(toCsv("" + input.getValue()));
+				setRow.setAssistedType(input.getAssistType());
+				setRow.setAssistedUnit(input.getUnit());
+				setRow.setAssistedValue("" + input.getValue());
 				
 			} else if("weighted".equals(input.getAssistType())) { 
-
-				csvWriter.write(toCsv(input.getAssistType()));
-				csvWriter.write(toCsv(input.getUnit()));
-				csvWriter.write(toCsv("" + input.getValue()));
+				
+				setRow.setWeightedType(input.getAssistType());
+				setRow.setWeightedUnit(input.getUnit());
+				setRow.setWeightedValue("" + input.getValue());
 
 			}
 		}
+		return setRow;
 	}
 	
 	public String toCsv(String input) {
+		return toCsv(input, true);
+	}
+	
+	public String toCsv(String input, boolean addComma) {
+		String ret = "";
 		if(StringUtils.isNotEmpty(input)) {
-			return StringEscapeUtils.escapeCsv(input) + ",";
-		} else {
-			return ",";
+			ret = StringEscapeUtils.escapeCsv(input);
+		} 
+		if(addComma) {
+			ret += ",";
 		}
+		return ret;
 	}
 
 	
@@ -336,5 +437,216 @@ public class FitocracyApiManager {
         cal.add(Calendar.DATE, days);
         return cal.getTime();
     }
+    
+    
+	private class CsvRow {
+		
+		String workoutName = null;
+		String workoutNotes = null;
+		String workoutTime = null;
+		
+		String groupName = null;
+
+		
+		String exerciseSequence = null;
+		String exerciseName = null;
+		
+		String setSequence = null;
+		String points = null;
+		
+		String distanceUnit = null;
+		String distanceValue = null;
+		
+		String timeUnit = null;
+		String timeValue = null;
+		
+		
+		String repsValue = null;
+		
+		String weightUnit = null;
+		String weightValue = null;
+		
+		String assistedType = null;
+		String assistedUnit = null;
+		String assistedValue = null;
+		
+		String weightedType = null;
+		String weightedUnit = null;
+		String weightedValue = null;
+		
+		
+		
+		public CsvRow() {
+			super();
+		}
+		
+		public CsvRow(CsvRow row) {
+			super();
+			
+			this.workoutName = row.workoutName;
+			this.workoutNotes = row.workoutNotes;
+			this.workoutTime = row.workoutTime;
+			
+			this.groupName = row.groupName;
+
+			
+			this.exerciseSequence = row.exerciseSequence;
+			this.exerciseName = row.exerciseName;
+			
+			this.setSequence = row.setSequence;
+			this.points = row.points;
+			
+			this.distanceUnit = row.distanceUnit;
+			this.distanceValue = row.distanceValue;
+			
+			this.timeUnit = row.timeUnit;
+			this.timeValue = row.timeValue;
+			
+			
+			this.repsValue = row.repsValue;
+			
+			this.weightUnit = row.weightUnit;
+			this.weightValue = row.weightValue;
+			
+			this.assistedType = row.assistedType;
+			this.assistedUnit = row.assistedUnit;
+			this.assistedValue = row.assistedValue;
+			
+			this.weightedType = row.weightedType;
+			this.weightedUnit = row.weightedUnit;
+			this.weightedValue = row.weightedValue;
+		}
+		
+		
+		public String getWorkoutName() {
+			return workoutName;
+		}
+		public void setWorkoutName(String workoutName) {
+			this.workoutName = workoutName;
+		}
+		public String getWorkoutNotes() {
+			return workoutNotes;
+		}
+		public void setWorkoutNotes(String workoutNotes) {
+			this.workoutNotes = workoutNotes;
+		}
+		public String getWorkoutTime() {
+			return workoutTime;
+		}
+		public void setWorkoutTime(String workoutTime) {
+			this.workoutTime = workoutTime;
+		}
+		public String getGroupName() {
+			return groupName;
+		}
+		public void setGroupName(String groupName) {
+			this.groupName = groupName;
+		}
+		public String getExerciseSequence() {
+			return exerciseSequence;
+		}
+		public void setExerciseSequence(String exerciseSequence) {
+			this.exerciseSequence = exerciseSequence;
+		}
+		public String getExerciseName() {
+			return exerciseName;
+		}
+		public void setExerciseName(String exerciseName) {
+			this.exerciseName = exerciseName;
+		}
+		public String getPoints() {
+			return points;
+		}
+		public void setPoints(String points) {
+			this.points = points;
+		}
+		public String getDistanceUnit() {
+			return distanceUnit;
+		}
+		public void setDistanceUnit(String distanceUnit) {
+			this.distanceUnit = distanceUnit;
+		}
+		public String getDistanceValue() {
+			return distanceValue;
+		}
+		public void setDistanceValue(String distanceValue) {
+			this.distanceValue = distanceValue;
+		}
+		public String getTimeUnit() {
+			return timeUnit;
+		}
+		public void setTimeUnit(String timeUnit) {
+			this.timeUnit = timeUnit;
+		}
+		public String getTimeValue() {
+			return timeValue;
+		}
+		public void setTimeValue(String timeValue) {
+			this.timeValue = timeValue;
+		}
+		public String getRepsValue() {
+			return repsValue;
+		}
+		public void setRepsValue(String repsValue) {
+			this.repsValue = repsValue;
+		}
+		public String getWeightUnit() {
+			return weightUnit;
+		}
+		public void setWeightUnit(String weightUnit) {
+			this.weightUnit = weightUnit;
+		}
+		public String getWeightValue() {
+			return weightValue;
+		}
+		public void setWeightValue(String weightValue) {
+			this.weightValue = weightValue;
+		}
+		public String getAssistedType() {
+			return assistedType;
+		}
+		public void setAssistedType(String assistedType) {
+			this.assistedType = assistedType;
+		}
+		public String getAssistedUnit() {
+			return assistedUnit;
+		}
+		public void setAssistedUnit(String assistedUnit) {
+			this.assistedUnit = assistedUnit;
+		}
+		public String getAssistedValue() {
+			return assistedValue;
+		}
+		public void setAssistedValue(String assistedValue) {
+			this.assistedValue = assistedValue;
+		}
+		public String getWeightedType() {
+			return weightedType;
+		}
+		public void setWeightedType(String weightedType) {
+			this.weightedType = weightedType;
+		}
+		public String getWeightedUnit() {
+			return weightedUnit;
+		}
+		public void setWeightedUnit(String weightedUnit) {
+			this.weightedUnit = weightedUnit;
+		}
+		public String getWeightedValue() {
+			return weightedValue;
+		}
+		public void setWeightedValue(String weightedValue) {
+			this.weightedValue = weightedValue;
+		}
+		public String getSetSequence() {
+			return setSequence;
+		}
+		public void setSetSequence(String setSequence) {
+			this.setSequence = setSequence;
+		}
+		
+		
+
+	}
 	
 }
