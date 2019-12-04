@@ -1,15 +1,20 @@
 package fitness.thunderwave.fitocracy.exporter;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import org.apache.commons.lang3.StringUtils;
@@ -65,7 +70,54 @@ public class FitocracyApiManager {
 		}
 		
 		
+		Map<String, String> exerciseMap = getExerciseMap();
 		BufferedWriter csvWriter = new BufferedWriter(new FileWriter(fitocracyId + ".csv"));
+		
+		{ // Titles
+			
+			csvWriter.write(toCsv("Workout Time"));
+			csvWriter.write(toCsv("Name"));
+
+			// workout group info
+			csvWriter.write(toCsv("Superset Name"));
+
+			// workout exercise
+			csvWriter.write(toCsv("Exercise Sequence"));
+			csvWriter.write(toCsv("Exercise Name"));
+			
+			
+			// set data
+			csvWriter.write(toCsv("Set Sequence"));
+
+			
+
+			csvWriter.write(toCsv("Distance Unit"));
+			csvWriter.write(toCsv("Distance Value"));
+
+			csvWriter.write(toCsv("Time Unit"));
+			csvWriter.write(toCsv("Time Value"));
+
+			csvWriter.write(toCsv("Reps Value"));
+			
+			csvWriter.write(toCsv("Weight Unit"));
+			csvWriter.write(toCsv("Weight Value"));
+			
+
+			csvWriter.write(toCsv("Assist Type"));
+			csvWriter.write(toCsv("Assist Unit"));
+			csvWriter.write(toCsv("Assist Value"));
+			
+			csvWriter.write(toCsv("Weighted Type"));
+			csvWriter.write(toCsv("Weighted Unit"));
+			csvWriter.write(toCsv("Weighted Value"));
+			
+			csvWriter.write(toCsv("Points"));
+			
+			csvWriter.write(toCsv("Notes", false));
+			
+			csvWriter.write("\n");
+			
+		}
 		
 		for (CsvRow csvRow : csvRows) {
 			
@@ -78,13 +130,17 @@ public class FitocracyApiManager {
 
 			// workout exercise
 			csvWriter.write(toCsv(csvRow.getExerciseSequence()));
-			csvWriter.write(toCsv(csvRow.getExerciseName()));
 			
-			
+			if(exerciseMap.containsKey(csvRow.getExerciseId())) {
+				csvWriter.write(toCsv(exerciseMap.get(csvRow.getExerciseId())));
+			} else {
+				csvWriter.write(toCsv("ID:" + csvRow.getExerciseId()));
+			}
+
 			// set data
 			csvWriter.write(toCsv(csvRow.getSetSequence()));
 
-			csvWriter.write(toCsv(csvRow.getPoints()));
+			
 
 			csvWriter.write(toCsv(csvRow.getDistanceUnit()));
 			csvWriter.write(toCsv(csvRow.getDistanceValue()));
@@ -105,6 +161,8 @@ public class FitocracyApiManager {
 			csvWriter.write(toCsv(csvRow.getWeightedType()));
 			csvWriter.write(toCsv(csvRow.getWeightedUnit()));
 			csvWriter.write(toCsv(csvRow.getWeightedValue()));
+			
+			csvWriter.write(toCsv(csvRow.getPoints()));
 			
 			csvWriter.write(toCsv(csvRow.getWorkoutNotes(), false));
 			
@@ -218,9 +276,17 @@ public class FitocracyApiManager {
 					
 					List<DtoFitoWorkoutExercise> children = fitoWorkout.getRootGroup().getChildren();
 					
+					int childCount = 1;
 					int exSeqId = 1;
 					for (DtoFitoWorkoutExercise child : children) {
 						if("group".equals(child.getType())) {
+							
+							if(childCount > 1) {
+								workout = new CsvRow(workout);
+								workout.resetExerciseGroup();
+								workout.resetExercise();
+								workout.resetSet();
+							}
 							
 							workout = processWorkoutGroup(workout, child);
 							
@@ -228,10 +294,20 @@ public class FitocracyApiManager {
 							csvRows.addAll(exerciseRows);
 							
 						} else if("exercise".equals(child.getType())) {
+							
+							if(childCount > 1) {
+								workout = new CsvRow(workout);
+								workout.resetExerciseGroup();
+								workout.resetExercise();
+								workout.resetSet();
+							}
+
+							
 							List<CsvRow> exerciseRows = processChildExercise(workout, child, exSeqId);
 							csvRows.addAll(exerciseRows);
 							exSeqId += 1;
 						}
+						childCount++;
 					}
 				} 
 			}
@@ -268,26 +344,29 @@ public class FitocracyApiManager {
 		
 		int exSeq = 1;
 		for (DtoFitoWorkoutGroupExercise ex : exercises) {
-			
-			if(exSeq > 1) {
-				tmpExRow = new CsvRow(workout);
-				csvRows.add(tmpExRow);
-			}
-			
+
 			DtoFitoWorkoutExerciseDetail detail = ex.getExercise();
 			
 			if(detail != null) {
 				
+				if(exSeq > 1) {
+					tmpExRow = new CsvRow(tmpExRow);
+					tmpExRow.resetExercise();
+					tmpExRow.resetSet();
+					csvRows.add(tmpExRow);
+				}
 				
-				processExercise(tmpExRow, detail, exSeq);
+				
+				tmpExRow = processExercise(tmpExRow, detail, exSeq);
 				List<DtoFitoWorkoutSet> sets = detail.getSets();
 				
 				CsvRow tmpSetRow = tmpExRow;
 				int setSeq = 1;
 				for (DtoFitoWorkoutSet set : sets) {
 					
-					if(exSeq > 1) {
+					if(setSeq > 1) {
 						tmpSetRow = new CsvRow(tmpExRow);
+						tmpSetRow.resetSet();
 						csvRows.add(tmpSetRow);
 					}
 					
@@ -302,7 +381,7 @@ public class FitocracyApiManager {
 	}
 
 	
-	private List<CsvRow> processChildExercise(CsvRow workout, DtoFitoWorkoutExercise exercise, int exSeq) throws IOException {
+	private List<CsvRow> processChildExercise(CsvRow row, DtoFitoWorkoutExercise exercise, int exSeq) throws IOException {
 		List<CsvRow> csvRows = new ArrayList<>();
 		
 		if(exercise == null) {
@@ -310,19 +389,31 @@ public class FitocracyApiManager {
 		}
 
 		DtoFitoWorkoutExerciseDetail detail = exercise.getExercise();
+		CsvRow tmpExRow = row;
+		
 		
 		if(detail != null) {
-			processExercise(workout, detail, exSeq);
+			
+			if(exSeq > 1) {
+				tmpExRow = new CsvRow(tmpExRow);
+				tmpExRow.resetExercise();
+				tmpExRow.resetSet();
+				csvRows.add(tmpExRow);
+			}
+			
+			processExercise(tmpExRow, detail, exSeq);
 			List<DtoFitoWorkoutSet> sets = detail.getSets();
 			
-			CsvRow tmpRow = workout;
+			CsvRow tmpSetRow = tmpExRow;
 			int setSeq = 1;
 			for (DtoFitoWorkoutSet set : sets) {
 				if(setSeq > 1) {
-					tmpRow = new CsvRow(tmpRow);
+					tmpSetRow = new CsvRow(tmpSetRow);
+					tmpSetRow.resetSet();
+					csvRows.add(tmpSetRow);
 				}
 				
-				processSet(tmpRow, set, setSeq);
+				tmpSetRow = processSet(tmpSetRow, set, setSeq);
 				setSeq++;
 			}
 		}
@@ -332,27 +423,9 @@ public class FitocracyApiManager {
 	private CsvRow processExercise(CsvRow row, DtoFitoWorkoutExerciseDetail exerciseDetail, int seq) throws IOException {
 		
 		row.setExerciseSequence("" + seq);
-		row.setExerciseName("" + exerciseDetail.getExerciseId());
+		row.setExerciseId("" + exerciseDetail.getExerciseId());
 
 		return row;
-		
-		// TODO get list of exercises
-		
-//		if(exerciseDetail.getExerciseId() != null) {
-//			Long exId = exerciseDetail.getExerciseId();
-//			if(this.fitocracyDuplicatedExerciseMap.containsKey(exId)) {
-//				exId = this.fitocracyDuplicatedExerciseMap.get(exId);
-//				logger.debug("Found duplicate fitocracy exercise:" + exerciseDetail.getExerciseId() + " -> " + exId);
-//			}
-//			VwExercise vwExercise = viewDao.getVwExerciseByOldId(exId);
-//			if(vwExercise != null) {
-//				tbWorkoutExercise.setExerciseId(vwExercise.getExerciseId());
-//			} else {
-//				throw new Exception("Can't find exercise: " + exerciseDetail);
-//			}
-//		}
-
-		
 	}
 	
 	
@@ -449,7 +522,7 @@ public class FitocracyApiManager {
 
 		
 		String exerciseSequence = null;
-		String exerciseName = null;
+		String exerciseId = null;
 		
 		String setSequence = null;
 		String points = null;
@@ -491,7 +564,7 @@ public class FitocracyApiManager {
 
 			
 			this.exerciseSequence = row.exerciseSequence;
-			this.exerciseName = row.exerciseName;
+			this.exerciseId = row.exerciseId;
 			
 			this.setSequence = row.setSequence;
 			this.points = row.points;
@@ -515,6 +588,40 @@ public class FitocracyApiManager {
 			this.weightedType = row.weightedType;
 			this.weightedUnit = row.weightedUnit;
 			this.weightedValue = row.weightedValue;
+		}
+		
+		public void resetExerciseGroup() {
+			this.groupName = null;
+		}
+		
+		public void resetExercise() {
+			this.exerciseSequence = null;
+			this.exerciseId = null;
+		}
+		
+		public void resetSet() {
+			this.setSequence = null;
+			this.points = null;
+			
+			this.distanceUnit = null;
+			this.distanceValue = null;
+			
+			this.timeUnit = null;
+			this.timeValue = null;
+			
+			
+			this.repsValue = null;
+			
+			this.weightUnit = null;
+			this.weightValue = null;
+			
+			this.assistedType = null;
+			this.assistedUnit = null;
+			this.assistedValue = null;
+			
+			this.weightedType = null;
+			this.weightedUnit = null;
+			this.weightedValue = null;
 		}
 		
 		
@@ -548,11 +655,11 @@ public class FitocracyApiManager {
 		public void setExerciseSequence(String exerciseSequence) {
 			this.exerciseSequence = exerciseSequence;
 		}
-		public String getExerciseName() {
-			return exerciseName;
+		public String getExerciseId() {
+			return exerciseId;
 		}
-		public void setExerciseName(String exerciseName) {
-			this.exerciseName = exerciseName;
+		public void setExerciseId(String exerciseId) {
+			this.exerciseId = exerciseId;
 		}
 		public String getPoints() {
 			return points;
@@ -647,6 +754,22 @@ public class FitocracyApiManager {
 		
 		
 
+	}
+	
+	private Map<String, String> getExerciseMap() throws IOException {
+		InputStream is = this.getClass().getResourceAsStream("/exercises.csv");
+
+		Map<String, String> map = new HashMap<>();
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+		    String line;
+		    while ((line = br.readLine()) != null) {
+		        String[] values = line.split(",");
+		        if(values.length > 1) {
+		        	map.put(values[0], values[1]);
+		        }
+		    }
+		}
+		return map;
 	}
 	
 }
