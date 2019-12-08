@@ -70,7 +70,7 @@ public class FitocracyApiManager {
 		
 		
 		Map<String, String> exerciseMap = getExerciseMap();
-		BufferedWriter csvWriter = new BufferedWriter(new FileWriter(fitocracyId + ".csv"));
+		BufferedWriter csvWriter = new BufferedWriter(new FileWriter("exports/" + fitocracyId + ".csv"));
 		
 		{ // Titles
 			
@@ -237,7 +237,7 @@ public class FitocracyApiManager {
 		
 		if(foundData) {
 			try {
-				BufferedWriter writer = new BufferedWriter(new FileWriter(fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
+				BufferedWriter writer = new BufferedWriter(new FileWriter("exports/" + fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
 				writer.write(json);
 				writer.close();
 			} catch (IOException e1) {
@@ -350,8 +350,8 @@ public class FitocracyApiManager {
 					tmpExRow = new CsvRow(tmpExRow);
 					tmpExRow.resetExercise();
 					tmpExRow.resetSet();
-					csvRows.add(tmpExRow);
 				}
+				csvRows.add(tmpExRow);
 				
 				
 				tmpExRow = processExercise(tmpExRow, detail, exSeq);
@@ -366,6 +366,7 @@ public class FitocracyApiManager {
 						tmpSetRow.resetSet();
 						csvRows.add(tmpSetRow);
 					}
+					
 					
 					processSet(tmpSetRow, set, setSeq);
 					setSeq++;
