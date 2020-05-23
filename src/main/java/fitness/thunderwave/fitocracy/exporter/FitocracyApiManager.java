@@ -53,6 +53,13 @@ public class FitocracyApiManager {
 
 		// doing one day at time sequentially, to keep the load on Fitocracy serves light
 		while(tmpDate.getTime() <=  endSearchDate.getTime()) {
+			try {
+				// sleep for 2 seconds, don't want to DOS attack fitocracy
+				Thread.sleep(2 * 1000L);
+			} catch (InterruptedException e) {
+				System.err.println(e.getMessage());
+				return;
+			}
 			
 			String jsonResponse = makeApiCall(fitocracyId, sessionId, fitocracyApiBaseUrl, tmpDate);
 
@@ -60,12 +67,7 @@ public class FitocracyApiManager {
 			csvRows.addAll(workoutRows);
 			
 			tmpDate = addDays(tmpDate, 1);
-			try {
-				// sleep for 1 second, don't want to DOS attack fitocracy
-				Thread.sleep(1L);
-			} catch (InterruptedException e) {
-				System.err.println(e.getMessage());
-			}
+
 		}
 		
 		
