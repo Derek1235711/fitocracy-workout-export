@@ -19,7 +19,7 @@ public class DtoFitoWorkoutExerciseDetail {
 	@JsonProperty("name")
 	private String name;
 
-	@JsonProperty("ex_notes")
+	@JsonProperty("notes")
 	private String notes;
 	
 	private List<DtoFitoWorkoutSet> sets = new ArrayList<>();

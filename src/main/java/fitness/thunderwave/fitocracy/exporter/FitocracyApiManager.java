@@ -2,10 +2,13 @@ package fitness.thunderwave.fitocracy.exporter;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -43,7 +46,42 @@ public class FitocracyApiManager {
     final static private String DATE_FORMAT = "yyyy-MM-dd";
     public final static SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat(DATE_FORMAT);
     
-    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate) throws Exception {
+    public void processCSVFileOnly(String fitocracyId, String path) throws Exception {
+
+
+    	File exportFolder = new File(path);
+    	
+    	if(!exportFolder.exists()) {
+    		boolean result = exportFolder.mkdir();
+    		if(!result) {
+    			throw new Exception("Unable to create directory");
+    		}
+    	} 
+
+	    for (final File fileEntry : exportFolder.listFiles()) {
+	        if (fileEntry.isFile()) {
+	        	 System.out.println(fileEntry.getName());
+	        	 if(fileEntry.getName().endsWith(".json")) {
+	        		 String content = new String ( Files.readAllBytes( Paths.get(fileEntry.getPath()) ) );
+	        		 if(StringUtils.isNotEmpty(content)) {
+	        			 processJson(content, fitocracyId, null, path);
+	        		 }
+	        		 
+	        	 }
+	        } 
+	    }
+    }
+    
+    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate, String path) throws Exception {
+    	
+    	File exportFolder = new File(path);
+    	
+    	if(!exportFolder.exists()) {
+    		boolean result = exportFolder.mkdir();
+    		if(!result) {
+    			throw new Exception("Unable to create directory");
+    		}
+    	} 
     	
 		Date startSearchDate = startDate;
 		Date endSearchDate = getEndofDay(new Date());
@@ -63,7 +101,7 @@ public class FitocracyApiManager {
 			
 			String jsonResponse = makeApiCall(fitocracyId, sessionId, fitocracyApiBaseUrl, tmpDate);
 
-			List<CsvRow> workoutRows = processJson(jsonResponse, fitocracyId, tmpDate);
+			List<CsvRow> workoutRows = processJson(jsonResponse, fitocracyId, tmpDate, exportFolder.getPath());
 			csvRows.addAll(workoutRows);
 			
 			tmpDate = addDays(tmpDate, 1);
@@ -71,55 +109,161 @@ public class FitocracyApiManager {
 		}
 		
 		
-		Map<String, String> exerciseMap = getExerciseMap();
-		BufferedWriter csvWriter = new BufferedWriter(new FileWriter("exports/" + fitocracyId + ".csv"));
+
+    	
+    }
+	
+	
+	private String makeApiCall(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date date) throws IOException  {
+
+			
+		HttpHeaders headers = new HttpHeaders();
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.add("Cookie", sessionId );
+
+		HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
+		RestTemplate restTemplate = new RestTemplate();
+
+		ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
+																			+ "/user/"
+																			+ fitocracyId
+																			+ "/workouts/"
+																			+ DATE_FORMATTER.format(date) 
+																			+ "/",
+																			HttpMethod.GET, entity, String.class);
 		
-		{ // Titles
-			
-			csvWriter.write(toCsv("Workout Time"));
-			csvWriter.write(toCsv("Name"));
+		System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
+		
+		if(respEntity.getStatusCode().is2xxSuccessful()) {
 
-			// workout group info
-			csvWriter.write(toCsv("Superset Name"));
+			String json = respEntity.getBody();
+			return json;
 
-			// workout exercise
-			csvWriter.write(toCsv("Exercise Sequence"));
-			csvWriter.write(toCsv("Exercise Name"));
-			
-			
-			// set data
-			csvWriter.write(toCsv("Set Sequence"));
-
+		} else {
+			System.err.println("Unsuccessful attempt to get data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date) + "" + respEntity.getStatusCode());
+		}
 			
 
-			csvWriter.write(toCsv("Distance Unit"));
-			csvWriter.write(toCsv("Distance Value"));
+		return null;
+	}
+	
+	private List<CsvRow> processJson(String json, String fitocracyId, Date date, String outputFolder) throws Exception  {
+		
+		List<CsvRow>  csvRows = new ArrayList<>();
+		
+		ObjectMapper objectMapper = new ObjectMapper();
+		
+		boolean foundData = false;
+		
+		try {
 
-			csvWriter.write(toCsv("Time Unit"));
-			csvWriter.write(toCsv("Time Value"));
+			DtoFitoWorkoutDay data = objectMapper.readValue(json, DtoFitoWorkoutDay.class);
+			if(data.getData() != null && data.getData().size() > 0) {
+				foundData = true;
+				System.out.println("found " + data.getData().size() + " workout(s)");
+				csvRows.addAll(processWorkoutDay(data));
+			} else {
+				if(StringUtils.isNotBlank(data.getError())) {
+					throw new Exception(data.getError());
+				} 
+				System.out.println("found 0 workout(s)");
+			}
+			
+		} catch (JsonProcessingException e) {
+			System.err.println(e.getMessage());
+		} 
+		
+		if(foundData) {
+			if(date != null) {
+				try {
+					BufferedWriter writer = new BufferedWriter(new FileWriter("exports/" + fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
+					writer.write(json);
+					writer.close();
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+			}
 
-			csvWriter.write(toCsv("Reps Value"));
-			
-			csvWriter.write(toCsv("Weight Unit"));
-			csvWriter.write(toCsv("Weight Value"));
-			
-
-			csvWriter.write(toCsv("Assist Type"));
-			csvWriter.write(toCsv("Assist Unit"));
-			csvWriter.write(toCsv("Assist Value"));
-			
-			csvWriter.write(toCsv("Weighted Type"));
-			csvWriter.write(toCsv("Weighted Unit"));
-			csvWriter.write(toCsv("Weighted Value"));
-			
-			csvWriter.write(toCsv("Points"));
-			
-			csvWriter.write(toCsv("Notes", false));
-			
-			csvWriter.write("\n");
-			
+			writeOutCsv(fitocracyId, csvRows, outputFolder);
 		}
 		
+		return csvRows;
+	}
+	
+	
+	private void writeOutCsv(String fitocracyId, List<CsvRow> csvRows, String outputFolder) throws IOException {
+		
+		if(csvRows == null || csvRows.isEmpty()) {
+			return;
+		}
+		
+		String defaultCsvFilePath = outputFolder + "/" + fitocracyId + ".csv";
+		
+		File csvFile = new File(defaultCsvFilePath);
+		
+		FileWriter fileWriter = null;
+		BufferedWriter csvWriter = null;
+		
+		if(!csvFile.exists()) {
+			// Create csv headers
+			fileWriter = new FileWriter(defaultCsvFilePath);
+			csvWriter = new BufferedWriter(fileWriter);
+		
+			{ // Titles
+				
+				csvWriter.write(toCsv("Workout Time"));
+				csvWriter.write(toCsv("Name"));
+
+				// workout group info
+				csvWriter.write(toCsv("Superset Name"));
+
+				// workout exercise
+				csvWriter.write(toCsv("Exercise Sequence"));
+				csvWriter.write(toCsv("Exercise Name"));
+				
+				
+				// set data
+				csvWriter.write(toCsv("Set Sequence"));
+
+				
+
+				csvWriter.write(toCsv("Distance Unit"));
+				csvWriter.write(toCsv("Distance Value"));
+
+				csvWriter.write(toCsv("Time Unit"));
+				csvWriter.write(toCsv("Time Value"));
+
+				csvWriter.write(toCsv("Reps Value"));
+				
+				csvWriter.write(toCsv("Weight Unit"));
+				csvWriter.write(toCsv("Weight Value"));
+				
+
+				csvWriter.write(toCsv("Assist Type"));
+				csvWriter.write(toCsv("Assist Unit"));
+				csvWriter.write(toCsv("Assist Value"));
+				
+				csvWriter.write(toCsv("Weighted Type"));
+				csvWriter.write(toCsv("Weighted Unit"));
+				csvWriter.write(toCsv("Weighted Value"));
+				
+				csvWriter.write(toCsv("Points"));
+				
+				csvWriter.write(toCsv("Workout Notes"));
+				csvWriter.write(toCsv("Exercise Notes", false));
+				
+				csvWriter.write("\n");
+				
+			}
+			
+		} else {
+			fileWriter = new FileWriter(defaultCsvFilePath, true);
+			csvWriter = new BufferedWriter(fileWriter);
+		}
+
+		Map<String, String> exerciseMap = getExerciseMap();
+
 		for (CsvRow csvRow : csvRows) {
 			
 			
@@ -165,7 +309,8 @@ public class FitocracyApiManager {
 			
 			csvWriter.write(toCsv(csvRow.getPoints()));
 			
-			csvWriter.write(toCsv(csvRow.getWorkoutNotes(), false));
+			csvWriter.write(toCsv(csvRow.getWorkoutNotes()));
+			csvWriter.write(toCsv(csvRow.getExerciseNotes(), false));
 			
 			csvWriter.write("\n");
 			
@@ -173,83 +318,7 @@ public class FitocracyApiManager {
 		
 		
 		csvWriter.close();
-    	
-    }
-	
-	
-	private String makeApiCall(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date date) throws IOException  {
-
-			
-		HttpHeaders headers = new HttpHeaders();
-		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-		headers.setContentType(MediaType.APPLICATION_JSON);
-		headers.add("Cookie", sessionId );
-
-		HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
-		RestTemplate restTemplate = new RestTemplate();
-
-		ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
-																			+ "/user/"
-																			+ fitocracyId
-																			+ "/workouts/"
-																			+ DATE_FORMATTER.format(date) 
-																			+ "/",
-																			HttpMethod.GET, entity, String.class);
-		
-		System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
-		
-		if(respEntity.getStatusCode().is2xxSuccessful()) {
-
-			String json = respEntity.getBody();
-			return json;
-
-		} else {
-			System.err.println("Unsuccessful attempt to get data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date) + "" + respEntity.getStatusCode());
-		}
-			
-
-		return null;
 	}
-	
-	private List<CsvRow> processJson(String json, String fitocracyId, Date date) throws Exception  {
-		
-		List<CsvRow>  csvRows = new ArrayList<>();
-		
-		ObjectMapper objectMapper = new ObjectMapper();
-		
-		boolean foundData = false;
-		
-		try {
-
-			DtoFitoWorkoutDay data = objectMapper.readValue(json, DtoFitoWorkoutDay.class);
-			if(data.getData() != null && data.getData().size() > 0) {
-				foundData = true;
-				System.out.println("found " + data.getData().size() + " workout(s)");
-				csvRows.addAll(processWorkoutDay(data));
-			} else {
-				if(StringUtils.isNotBlank(data.getError())) {
-					throw new Exception(data.getError());
-				} 
-				System.out.println("found 0 workout(s)");
-			}
-			
-		} catch (JsonProcessingException e) {
-			System.err.println(e.getMessage());
-		} 
-		
-		if(foundData) {
-			try {
-				BufferedWriter writer = new BufferedWriter(new FileWriter("exports/" + fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
-				writer.write(json);
-				writer.close();
-			} catch (IOException e1) {
-				e1.printStackTrace();
-			}
-		}
-		
-		return csvRows;
-	}
-	
 
     
 
@@ -424,6 +493,9 @@ public class FitocracyApiManager {
 		
 		row.setExerciseSequence("" + seq);
 		row.setExerciseId("" + exerciseDetail.getExerciseId());
+		if(StringUtils.isNotBlank(exerciseDetail.getNotes())) {
+			row.setExerciseNotes(exerciseDetail.getNotes());
+		}
 
 		return row;
 	}
@@ -523,6 +595,7 @@ public class FitocracyApiManager {
 		
 		String exerciseSequence = null;
 		String exerciseId = null;
+		String exerciseNotes = null;
 		
 		String setSequence = null;
 		String points = null;
@@ -565,6 +638,7 @@ public class FitocracyApiManager {
 			
 			this.exerciseSequence = row.exerciseSequence;
 			this.exerciseId = row.exerciseId;
+			this.exerciseNotes = row.exerciseNotes;
 			
 			this.setSequence = row.setSequence;
 			this.points = row.points;
@@ -597,6 +671,7 @@ public class FitocracyApiManager {
 		public void resetExercise() {
 			this.exerciseSequence = null;
 			this.exerciseId = null;
+			this.exerciseNotes = null;
 		}
 		
 		public void resetSet() {
@@ -750,6 +825,14 @@ public class FitocracyApiManager {
 		}
 		public void setSetSequence(String setSequence) {
 			this.setSequence = setSequence;
+		}
+
+		public String getExerciseNotes() {
+			return exerciseNotes;
+		}
+
+		public void setExerciseNotes(String exerciseNotes) {
+			this.exerciseNotes = exerciseNotes;
 		}
 		
 		

@@ -34,10 +34,17 @@ Finally, you need a date to start with.  Typically, the day that you joined Fito
 ### Example Running the application:
 command-line:
 
-> java -jar bin/fitocracy-exporter-0.1.jar 12345678 "sessionid=14d01ff07ba43393aeebd0d662ab5665" "2019-11-25"
+> java -jar bin\fitocracy-exporter-0.1.jar -a -s="sessionid=14d01ff07ba43393aeebd0d662ab5665" -d="2019-11-25" 12345678
 
 this will generate json files in the format of:  
 > 12345678_2019-12-01.json
 
 Then an overall CSV file, that can be used in a spreadsheet.
 > 12345678.csv
+
+
+## Json to CSV converter
+
+command-line:
+
+> java -jar bin\fitocracy-exporter-0.1.jar -c -f=my-json-directory 12345678
