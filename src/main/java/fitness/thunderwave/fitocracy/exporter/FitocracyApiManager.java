@@ -389,7 +389,10 @@ public class FitocracyApiManager {
 		
 		row.setWorkoutName(rootGroup.getName());
 		row.setWorkoutNotes(rootGroup.getNotes());
-		row.setWorkoutTime(fitoWorkout.getWorkoutTimestamp().toInstant().toString());
+		if(fitoWorkout.getWorkoutTimestamp() != null) {
+			row.setWorkoutTime(fitoWorkout.getWorkoutTimestamp().toInstant().toString());
+		}
+		
 
 		return row;
 	}
