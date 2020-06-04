@@ -177,7 +177,7 @@ public class FitocracyApiManager {
 		if(foundData) {
 			if(date != null) {
 				try {
-					BufferedWriter writer = new BufferedWriter(new FileWriter("exports/" + fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
+					BufferedWriter writer = new BufferedWriter(new FileWriter(outputFolder + File.separator + fitocracyId + "_" + DATE_FORMATTER.format(date) + ".json"));
 					writer.write(json);
 					writer.close();
 				} catch (IOException e1) {
@@ -198,7 +198,7 @@ public class FitocracyApiManager {
 			return;
 		}
 		
-		String defaultCsvFilePath = outputFolder + "/" + fitocracyId + ".csv";
+		String defaultCsvFilePath = outputFolder + File.separator + fitocracyId + ".csv";
 		
 		File csvFile = new File(defaultCsvFilePath);
 		
