@@ -233,6 +233,12 @@ public class FitocracyApiManager {
 
 				csvWriter.write(toCsv("Time Unit"));
 				csvWriter.write(toCsv("Time Value"));
+				
+				csvWriter.write(toCsv("Rate Unit"));
+				csvWriter.write(toCsv("Rate Value"));
+				
+				csvWriter.write(toCsv("HeartRate Unit"));
+				csvWriter.write(toCsv("HeartRate Value"));
 
 				csvWriter.write(toCsv("Reps Value"));
 				
@@ -292,6 +298,12 @@ public class FitocracyApiManager {
 
 			csvWriter.write(toCsv(csvRow.getTimeUnit()));
 			csvWriter.write(toCsv(csvRow.getTimeValue()));
+			
+			csvWriter.write(toCsv(csvRow.getRateUnit()));
+			csvWriter.write(toCsv(csvRow.getRateValue()));
+			
+			csvWriter.write(toCsv(csvRow.getHeartRateUnit()));
+			csvWriter.write(toCsv(csvRow.getHeartRateValue()));
 
 			csvWriter.write(toCsv(csvRow.getRepsValue()));
 			
@@ -534,6 +546,16 @@ public class FitocracyApiManager {
 				setRow.setWeightUnit(input.getUnit());
 				setRow.setWeightValue("" + input.getValue());
 
+			} else if("rate".equals(input.getType())) {
+				
+				setRow.setRateUnit(input.getUnit());
+				setRow.setRateValue("" + input.getValue());
+
+			} else if("heartrate".equals(input.getType())) {
+				
+				setRow.setHeartRateUnit(input.getUnit());
+				setRow.setHeartRateValue("" + input.getValue());
+
 			}
 
 			if("assisted".equals(input.getAssistType())) {
@@ -615,6 +637,12 @@ public class FitocracyApiManager {
 		String weightUnit = null;
 		String weightValue = null;
 		
+		String rateUnit = null;
+		String rateValue = null;
+		
+		String heartRateUnit = null;
+		String heartRateValue = null;
+		
 		String assistedType = null;
 		String assistedUnit = null;
 		String assistedValue = null;
@@ -658,6 +686,12 @@ public class FitocracyApiManager {
 			this.weightUnit = row.weightUnit;
 			this.weightValue = row.weightValue;
 			
+			this.rateUnit = row.rateUnit;
+			this.rateValue = row.rateValue;
+			
+			this.heartRateUnit = row.heartRateUnit;
+			this.heartRateValue = row.heartRateValue;
+			
 			this.assistedType = row.assistedType;
 			this.assistedUnit = row.assistedUnit;
 			this.assistedValue = row.assistedValue;
@@ -692,6 +726,12 @@ public class FitocracyApiManager {
 			
 			this.weightUnit = null;
 			this.weightValue = null;
+			
+			this.rateUnit = null;
+			this.rateValue = null;
+			
+			this.heartRateUnit = null;
+			this.heartRateValue = null;
 			
 			this.assistedType = null;
 			this.assistedUnit = null;
@@ -836,6 +876,38 @@ public class FitocracyApiManager {
 
 		public void setExerciseNotes(String exerciseNotes) {
 			this.exerciseNotes = exerciseNotes;
+		}
+
+		public String getRateUnit() {
+			return rateUnit;
+		}
+
+		public void setRateUnit(String rateUnit) {
+			this.rateUnit = rateUnit;
+		}
+
+		public String getRateValue() {
+			return rateValue;
+		}
+
+		public void setRateValue(String rateValue) {
+			this.rateValue = rateValue;
+		}
+
+		public String getHeartRateUnit() {
+			return heartRateUnit;
+		}
+
+		public void setHeartRateUnit(String heartRateUnit) {
+			this.heartRateUnit = heartRateUnit;
+		}
+
+		public String getHeartRateValue() {
+			return heartRateValue;
+		}
+
+		public void setHeartRateValue(String heartRateValue) {
+			this.heartRateValue = heartRateValue;
 		}
 		
 		
