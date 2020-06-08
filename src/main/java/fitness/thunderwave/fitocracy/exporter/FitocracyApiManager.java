@@ -45,9 +45,11 @@ public class FitocracyApiManager {
 	
     final static private String DATE_FORMAT = "yyyy-MM-dd";
     public final static SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat(DATE_FORMAT);
+    public int sleep = 2;
     
     public void processCSVFileOnly(String fitocracyId, String path) throws Exception {
 
+    	System.out.println("Processing JSON files to create a .CSV file for: " + fitocracyId);
 
     	File exportFolder = new File(path);
     	
@@ -70,11 +72,21 @@ public class FitocracyApiManager {
 	        	 }
 	        } 
 	    }
+	    
+	    System.out.println("Finished Processing for: " + fitocracyId);
     }
     
-    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate, String path) throws Exception {
+    public void getWorkouts(String fitocracyId, String sessionId, String fitocracyApiBaseUrl, Date startDate, String path, int sleep) throws Exception {
+    	
+    	System.out.println("Getting workouts for: " + fitocracyId);
+    	System.out.println("  Starting at: " + FitocracyApiManager.DATE_FORMATTER.format(startDate));
+    	System.out.println("  Sleep Time (secs): " + sleep);
+    	
+    	this.sleep = sleep;
+    	
     	
     	File exportFolder = new File(path);
+    	System.out.println("  ExportFolder: " + exportFolder.getPath());
     	
     	if(!exportFolder.exists()) {
     		boolean result = exportFolder.mkdir();
@@ -92,8 +104,8 @@ public class FitocracyApiManager {
 		// doing one day at time sequentially, to keep the load on Fitocracy serves light
 		while(tmpDate.getTime() <=  endSearchDate.getTime()) {
 			try {
-				// sleep for 2 seconds, don't want to DOS attack fitocracy
-				Thread.sleep(2 * 1000L);
+				// sleep for X seconds, don't want to DOS attack fitocracy
+				Thread.sleep(this.sleep * 1000L);
 			} catch (InterruptedException e) {
 				System.err.println(e.getMessage());
 				return;
@@ -109,7 +121,7 @@ public class FitocracyApiManager {
 		}
 		
 		
-
+		System.out.println("Finished getting workouts for: " + fitocracyId);
     	
     }
 	

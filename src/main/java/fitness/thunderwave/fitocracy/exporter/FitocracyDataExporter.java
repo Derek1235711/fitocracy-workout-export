@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.concurrent.Callable;
 
+import org.apache.commons.lang3.StringUtils;
+
 import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Option;
@@ -27,6 +29,9 @@ public class FitocracyDataExporter implements Callable<Integer> {
         
         @Option(names = {"-u", "--api-base-url"}, defaultValue = "https://www.fitocracy.com/api/v2", description = "The base url for Fitocracy's api.  Defaults to: ${DEFAULT-VALUE}")
         String fitocracyBaseApiUrl;
+        
+        @Option(names = {"-s", "--sleep"}, defaultValue = "2", description = "Amount of time in seconds to sleep per API call.  Being nice and having slow constant calls to fitocracy.")
+        String sleepString;
         
         // @Option(names = "-x", defaultValue = "123", description = "Default: ${DEFAULT-VALUE}")
 
@@ -73,7 +78,15 @@ public class FitocracyDataExporter implements Callable<Integer> {
     	} else if(fitocracyAPI != null && fitocracyAPI.isUsingApi) {
     		try {
     			Date startDate = FitocracyApiManager.DATE_FORMATTER.parse(fitocracyAPI.startDateString);
-    	    	apiManager.getWorkouts(fitocracyUserId, fitocracyAPI.sessionId, fitocracyAPI.fitocracyBaseApiUrl, startDate, folder);
+    			int sleep = 2;
+    			if(StringUtils.isNumeric(fitocracyAPI.sleepString)) {
+    				int tmp = Integer.parseInt(fitocracyAPI.sleepString);
+    				if(tmp >= 1) {
+    					sleep = tmp;
+    				}
+    				
+    			}
+    	    	apiManager.getWorkouts(fitocracyUserId, fitocracyAPI.sessionId, fitocracyAPI.fitocracyBaseApiUrl, startDate, folder, sleep);
     		} catch (Exception e) {
     			System.err.println(e.getMessage());
     			e.printStackTrace();
