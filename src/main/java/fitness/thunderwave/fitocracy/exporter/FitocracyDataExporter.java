@@ -30,7 +30,7 @@ public class FitocracyDataExporter implements Callable<Integer> {
         @Option(names = {"-u", "--api-base-url"}, defaultValue = "https://www.fitocracy.com/api/v2", description = "The base url for Fitocracy's api.  Defaults to: ${DEFAULT-VALUE}")
         String fitocracyBaseApiUrl;
         
-        @Option(names = {"-s", "--sleep"}, defaultValue = "2", description = "Amount of time in seconds to sleep per API call.  Being nice and having slow constant calls to fitocracy.")
+        @Option(names = {"-l", "--sleep"}, defaultValue = "2", description = "Amount of time in seconds to sleep per API call.  Being nice and having slow constant calls to fitocracy.")
         String sleepString;
         
         // @Option(names = "-x", defaultValue = "123", description = "Default: ${DEFAULT-VALUE}")
