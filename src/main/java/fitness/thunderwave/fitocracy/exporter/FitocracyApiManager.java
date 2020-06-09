@@ -27,6 +27,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -133,27 +134,42 @@ public class FitocracyApiManager {
 		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		headers.add("Cookie", sessionId );
-
-		HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
-		RestTemplate restTemplate = new RestTemplate();
-
-		ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
-																			+ "/user/"
-																			+ fitocracyId
-																			+ "/workouts/"
-																			+ DATE_FORMATTER.format(date) 
-																			+ "/",
-																			HttpMethod.GET, entity, String.class);
 		
-		System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
+		for(int i = 0; i < 5; i++) {
+			try {
+	
+				HttpEntity<String> entity = new HttpEntity<String>("parameters", headers);
+				RestTemplate restTemplate = new RestTemplate();
 		
-		if(respEntity.getStatusCode().is2xxSuccessful()) {
-
-			String json = respEntity.getBody();
-			return json;
-
-		} else {
-			System.err.println("Unsuccessful attempt to get data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date) + "" + respEntity.getStatusCode());
+				ResponseEntity<String> respEntity = restTemplate.exchange(fitocracyApiBaseUrl 
+																					+ "/user/"
+																					+ fitocracyId
+																					+ "/workouts/"
+																					+ DATE_FORMATTER.format(date) 
+																					+ "/",
+																					HttpMethod.GET, entity, String.class);
+				
+				System.out.println("Getting Data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date));
+				
+				if(respEntity.getStatusCode().is2xxSuccessful()) {
+		
+					String json = respEntity.getBody();
+					return json;
+		
+				} else {
+					System.err.println("Unsuccessful attempt to get data for " + fitocracyId + " for date " + DATE_FORMATTER.format(date) + "" + respEntity.getStatusCode());
+					break;
+				}
+			} catch(RestClientException e) {
+				System.err.println(e);
+				try {
+					// sleeping for a little more time
+					Thread.sleep(this.sleep * 1000L * (i + 3));
+				} catch (InterruptedException ie) {
+					System.err.println(ie.getMessage());
+				}
+				
+			}
 		}
 			
 
